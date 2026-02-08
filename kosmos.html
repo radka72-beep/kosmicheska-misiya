@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Космическа мисия: Първокласници</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #05070a;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            background: radial-gradient(circle at center, #1b2735 0%, #05070a 100%);
+            transition: background 0.5s;
+        }
+
+        /* Ефект при верен отговор */
+        .correct-flash { background: #27ae60 !important; }
+
+        #scoreboard {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            font-size: 26px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .team-score { border: 3px solid; padding: 10px 25px; border-radius: 20px; text-shadow: 2px 2px 4px #000; }
+        .team-alpha { border-color: #00f2fe; color: #00f2fe; }
+        .team-beta { border-color: #f093fb; color: #f093fb; }
+
+        #level-title {
+            margin: 20px;
+            font-size: 36px;
+            text-align: center;
+            color: #ffda79;
+            text-shadow: 0 0 15px #ffda79;
+        }
+
+        #play-area {
+            position: relative;
+            width: 90%;
+            height: 55vh;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+        }
+
+        .draggable {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            margin: 10px;
+            border-radius: 15px;
+            cursor: grab;
+            font-size: 28px;
+            font-weight: bold;
+            color: #000;
+            box-shadow: 0 6px 10px rgba(0,0,0,0.4);
+        }
+
+        .drop-zone {
+            width: 300px;
+            height: 300px;
+            border: 5px dashed #fff;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .drop-zone h3 { pointer-events: none; text-align: center; font-size: 24px; }
+
+        #controls { margin-top: 20px; display: flex; gap: 20px; }
+        button {
+            padding: 15px 40px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            background: #f1c40f;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 5px 0 #c29d0b;
+        }
+
+        button:active { transform: translateY(4px); box-shadow: none; }
+
+        #success-msg {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px;
+            font-weight: bold;
+            color: #fff;
+            display: none;
+            z-index: 100;
+            text-shadow: 0 0 20px #000;
+        }
+
+        /* Финален екран */
+        #final-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .trophy { font-size: 200px; animation: bounce 2s infinite; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-30px); }
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="scoreboard">
+        <div class="team-score team-alpha">АЛФА: <span id="score-a">0</span></div>
+        <div id="turn-indicator">РЕД Е НА: АЛФА</div>
+        <div class="team-score team-beta">БЕТА: <span id="score-b">0</span></div>
+    </div>
+
+    <h1 id="level-title">Зареждане...</h1>
+
+    <div id="play-area"></div>
+
+    <div id="controls">
+        <button onclick="checkResult()">ПРОВЕРИ</button>
+        <button onclick="initLevel()" style="background:#e67e22; box-shadow: 0 5px 0 #d35400;">ИЗЧИСТИ</button>
+    </div>
+</div>
+
+<div id="success-msg">БРАВО! 🌟</div>
+
+<div id="final-screen">
+    <div class="trophy">🏆</div>
+    <h1 style="font-size: 60px; color: gold;">МИСИЯТА Е УСПЕШНА!</h1>
+    <h2 id="winner-text" style="font-size: 40px;"></h2>
+    <button onclick="location.reload()">НОВА ИГРА</button>
+</div>
+
+<script>
+    let currentLevel = 0;
+    let scoreA = 0;
+    let scoreB = 0;
+    let currentTeam = 'A';
+
+    const levels = [
+        {
+            title: "Планета 1: Намери само ДИВИТЕ животни",
+            type: "sort",
+            correct: ["ЛЪВ", "ТИГЪР", "ВЪЛК", "СЛОН"],
+            wrong: ["КУЧЕ", "КОТКА"],
+            target: "ДИВИ ЖИВОТНИ"
+        },
+        {
+            title: "Планета 2: Намери само ДОМАШНИТЕ животни",
+            type: "sort",
+            correct: ["КРАВА", "ОВЦА", "КОН", "ПРАСЕ"],
+            wrong: ["ЖИРАФ", "МЕЧКА"],
+            target: "ДОМАШНИ ЖИВОТНИ"
+        },
+        {
+            title: "Планета 3: Събиране до 20",
+            type: "math",
+            problem: "14 + 5",
+            answer: 19,
+            options: [17, 19, 20, 16]
+        },
+        {
+            title: "Планета 4: Изваждане до 20",
+            type: "math",
+            problem: "18 - 6",
+            answer: 12,
+            options: [10, 12, 14, 11]
+        },
+        {
+            title: "Планета 5: Сезони - Кое е за ЗИМАТА?",
+            type: "sort",
+            correct: ["СНЯГ", "ШЕЙНА", "КЪНКИ"],
+            wrong: ["СЛЪНЦЕ", "МОРЕ"],
+            target: "ЗИМА"
+        }
+    ];
+
+    function initLevel() {
+        const level = levels[currentLevel];
+        document.getElementById('level-title').innerText = level.title;
+        const playArea = document.getElementById('play-area');
+        playArea.innerHTML = '';
+
+        if (level.type === 'sort') {
+            const zone = document.createElement('div');
+            zone.className = 'drop-zone';
+            zone.id = 'main-zone';
+            zone.innerHTML = `<h3>Сложи тук:<br>${level.target}</h3>`;
+            zone.ondragover = e => e.preventDefault();
+            zone.ondrop = handleDrop;
+            playArea.appendChild(zone);
+
+            const items = [...level.correct, ...level.wrong].sort(() => Math.random() - 0.5);
+            items.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'draggable';
+                el.innerText = item;
+                el.draggable = true;
+                el.id = 'item-' + item;
+                el.ondragstart = e => e.dataTransfer.setData('text', e.target.id);
+                playArea.appendChild(el);
+            });
+        } else if (level.type === 'math') {
+            const q = document.createElement('div');
+            q.style.fontSize = "60px";
+            q.style.width = "100%";
+            q.style.textAlign = "center";
+            q.innerText = level.problem + " = ?";
+            playArea.appendChild(q);
+
+            level.options.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.className = 'draggable';
+                btn.innerText = opt;
+                btn.onclick = () => checkMath(opt);
+                playArea.appendChild(btn);
+            });
+        }
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        const data = e.dataTransfer.getData('text');
+        const el = document.getElementById(data);
+        if (e.target.className === 'drop-zone') {
+            e.target.appendChild(el);
+        }
+    }
+
+    function checkResult() {
+        const level = levels[currentLevel];
+        if (level.type === 'sort') {
+            const zone = document.getElementById('main-zone');
+            const itemsInZone = Array.from(zone.getElementsByClassName('draggable')).map(el => el.innerText);
+            
+            const isCorrect = level.correct.every(item => itemsInZone.includes(item)) && 
+                              itemsInZone.every(item => level.correct.includes(item));
+
+            if (isCorrect) {
+                showSuccess();
+            } else {
+                alert("Има грешка! Провери кои животни/предмети си сложил.");
+                switchTeam();
+            }
+        }
+    }
+
+    function checkMath(val) {
+        if (val === levels[currentLevel].answer) {
+            showSuccess();
+        } else {
+            alert("Грешен отговор!");
+            switchTeam();
+        }
+    }
+
+    function showSuccess() {
+        const msg = document.getElementById('success-msg');
+        const container = document.getElementById('game-container');
+        
+        msg.style.display = 'block';
+        container.classList.add('correct-flash');
+        
+        if (currentTeam === 'A') { scoreA += 10; document.getElementById('score-a').innerText = scoreA; }
+        else { scoreB += 10; document.getElementById('score-b').innerText = scoreB; }
+
+        setTimeout(() => {
+            msg.style.display = 'none';
+            container.classList.remove('correct-flash');
+            nextLevel();
+        }, 2000);
+    }
+
+    function switchTeam() {
+        currentTeam = (currentTeam === 'A') ? 'B' : 'A';
+        document.getElementById('turn-indicator').innerText = "РЕД Е НА: " + (currentTeam === 'A' ? "АЛФА" : "БЕТА");
+    }
+
+    function nextLevel() {
+        currentLevel++;
+        if (currentLevel >= levels.length) {
+            showFinal();
+        } else {
+            switchTeam();
+            initLevel();
+        }
+    }
+
+    function showFinal() {
+        const final = document.getElementById('final-screen');
+        const winnerText = document.getElementById('winner-text');
+        final.style.display = 'flex';
+        
+        let winner = "";
+        if (scoreA > scoreB) winner = "ПОБЕДИТЕЛ: ОТБОР АЛФА!";
+        else if (scoreB > scoreA) winner = "ПОБЕДИТЕЛ: ОТБОР БЕТА!";
+        else winner = "РАВЕНСТВО! И ДВАТА ОТБОРА СА СТРАХОТНИ!";
+        
+        winnerText.innerText = winner;
+    }
+
+    initLevel();
+</script>
+
+</body>
+</html>
