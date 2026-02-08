@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вълкът и козлетата</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Comic Neue', cursive;
+            background: linear-gradient(to bottom, #87CEEB, #228B22); /* Небе и трева */
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+
+        /* Интерфейс и съобщения */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            width: 90%;
+            text-align: center;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 20px;
+            padding: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        h1 { margin: 5px 0; color: #333; }
+        p { font-size: 1.2rem; color: #d32f2f; font-weight: bold; margin: 5px 0; }
+
+        /* Игрално поле */
+        #game-area {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Къщичката */
+        .house {
+            position: absolute;
+            bottom: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 250px;
+            background: #8B4513;
+            border: 4px solid #5D4037;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            cursor: pointer;
+            z-index: 5;
+            transition: transform 0.2s;
+        }
+
+        .house:active { transform: translateX(-50%) scale(0.95); }
+
+        /* Покрив */
+        .roof {
+            position: absolute;
+            top: -100px;
+            left: -20px;
+            width: 0; 
+            height: 0; 
+            border-left: 170px solid transparent;
+            border-right: 170px solid transparent;
+            border-bottom: 100px solid #A52A2A;
+        }
+
+        /* Врата */
+        .door {
+            width: 80px;
+            height: 120px;
+            background: #D2691E;
+            border-radius: 5px 5px 0 0;
+            border: 2px solid #3E2723;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+        }
+
+        /* Прозорец */
+        .window {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            width: 60px;
+            height: 60px;
+            background: #87CEEB;
+            border: 4px solid #FFF;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        /* Гората (декорация) */
+        .tree {
+            position: absolute;
+            bottom: 15%;
+            font-size: 8rem;
+            z-index: 1;
+            opacity: 0.9;
+        }
+        .tree.left { left: 5%; }
+        .tree.right { right: 5%; }
+
+        /* Герои */
+        .goat {
+            position: absolute;
+            font-size: 3.5rem;
+            cursor: pointer;
+            transition: top 0.5s, left 0.5s, opacity 0.3s;
+            z-index: 10;
+            animation: bounce 2s infinite;
+        }
+
+        .wolf {
+            position: absolute;
+            right: -200px; /* Скрит в началото */
+            bottom: 15%;
+            font-size: 10rem;
+            transition: right 3s linear;
+            z-index: 20;
+        }
+
+        /* Анимации */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Бутон за рестарт */
+        #restart-btn {
+            display: none;
+            padding: 15px 30px;
+            font-size: 1.5rem;
+            background-color: #FF9800;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 10px;
+            box-shadow: 0 4px #E65100;
+        }
+        #restart-btn:active { box-shadow: 0 0; transform: translateY(4px); }
+
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1>Вълкът и седемте козлета</h1>
+        <p id="instruction">Кликни върху козлетата, за да ги скриеш в къщата!</p>
+        <div id="score">Спасени: 0 / 7</div>
+        <button id="restart-btn" onclick="startGame()">Играй пак!</button>
+    </div>
+
+    <div id="game-area">
+        <!-- Декор -->
+        <div class="tree left">🌲</div>
+        <div class="tree right">🌳</div>
+        <div class="cloud" style="position:absolute; top:50px; left:10%; font-size:4rem;">☁️</div>
+        
+        <!-- Къщичка -->
+        <div class="house" id="house">
+            <div class="roof"></div>
+            <div class="window"></div>
+            <div class="door">🚪</div>
+        </div>
+
+        <!-- Вълк -->
+        <div class="wolf" id="wolf">🐺</div>
+    </div>
+
+    <script>
+        const gameArea = document.getElementById('game-area');
+        const house = document.getElementById('house');
+        const scoreDisplay = document.getElementById('score');
+        const instruction = document.getElementById('instruction');
+        const wolf = document.getElementById('wolf');
+        const restartBtn = document.getElementById('restart-btn');
+
+        let savedGoats = 0;
+        let totalGoats = 7;
+        let gameActive = false;
+        let goatsElements = [];
+
+        function createGoats() {
+            // Изчистване на стари козлета
+            goatsElements.forEach(el => el.remove());
+            goatsElements = [];
+
+            for (let i = 0; i < totalGoats; i++) {
+                let goat = document.createElement('div');
+                goat.classList.add('goat');
+                goat.innerText = '🐐';
+                
+                // Случайна позиция по тревата, но не върху къщата
+                let randomX;
+                do {
+                    randomX = Math.random() * (window.innerWidth - 100);
+                } while (randomX > window.innerWidth / 2 - 200 && randomX < window.innerWidth / 2 + 200);
+
+                let randomY = Math.random() * 100 + 100; // Височина от дъното
+
+                goat.style.left = randomX + 'px';
+                goat.style.bottom = randomY + 'px';
+
+                goat.onclick = () => saveGoat(goat);
+                
+                gameArea.appendChild(goat);
+                goatsElements.push(goat);
+            }
+        }
+
+        function saveGoat(goatElement) {
+            if (!gameActive) return;
+
+            // Анимация на прибиране към вратата
+            const houseRect = house.getBoundingClientRect();
+            goatElement.style.transition = "all 0.5s ease-in";
+            goatElement.style.left = (houseRect.left + houseRect.width / 2 - 30) + 'px';
+            goatElement.style.top = (houseRect.top + houseRect.height - 50) + 'px';
+            goatElement.style.opacity = '0';
+            
+            // Премахване след анимацията
+            setTimeout(() => {
+                if(goatElement.parentNode) {
+                    goatElement.remove();
+                    savedGoats++;
+                    updateScore();
+                    checkWin();
+                }
+            }, 500);
+        }
+
+        function updateScore() {
+            scoreDisplay.innerText = `Спасени: ${savedGoats} / 7`;
+        }
+
+        function startWolfAttack() {
+            wolf.style.transition = "right 10s linear";
+            wolf.style.right = "50%"; // Вълкът стига до къщата
+            
+            setTimeout(() => {
+                if (gameActive) {
+                    gameOver(false);
+                }
+            }, 10000); // Имате 10 секунди
+        }
+
+        function checkWin() {
+            if (savedGoats === totalGoats) {
+                gameOver(true);
+            }
+        }
+
+        function gameOver(win) {
+            gameActive = false;
+            // Спираме вълка където е
+            const computedStyle = window.getComputedStyle(wolf);
+            const currentRight = computedStyle.getPropertyValue('right');
+            wolf.style.transition = "none";
+            wolf.style.right = currentRight;
+
+            if (win) {
+                instruction.innerText = "Браво! Всички козлета са спасени! 🎉";
+                instruction.style.color = "green";
+                wolf.innerText = "😢"; // Тъжен вълк
+            } else {
+                instruction.innerText = "О, не! Вълкът дойде! 🐺";
+                instruction.style.color = "red";
+                wolf.style.transform = "scale(1.5)"; // Голям страшен вълк
+            }
+            restartBtn.style.display = "inline-block";
+        }
+
+        function startGame() {
+            savedGoats = 0;
+            gameActive = true;
+            restartBtn.style.display = "none";
+            instruction.innerText = "Кликни бързо върху козлетата! Вълкът идва!";
+            instruction.style.color = "#d32f2f";
+            updateScore();
+            
+            // Връщане на вълка в началото
+            wolf.style.transition = "none";
+            wolf.style.right = "-250px";
+            wolf.style.transform = "scale(1)";
+            wolf.innerText = "🐺";
+
+            createGoats();
+
+            // Малко забавяне преди вълкът да тръгне
+            setTimeout(() => {
+                startWolfAttack();
+            }, 500);
+        }
+
+        // Стартиране при зареждане
+        window.onload = startGame;
+
+    </script>
+</body>
+</html>
